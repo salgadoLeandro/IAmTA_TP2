@@ -49,15 +49,25 @@ public class Server {
     
     private static class WorkerThread extends Thread {
         
+        BufferedReader bf;
+        
         public WorkerThread () {
-            
+            bf = new BufferedReader(new InputStreamReader(System.in));
         }
         
         public void run() {
-            System.out.println("Server is running on port " + PORT);
-            //BufferedReader bf = new BufferedReader(new InputStreamReader(System.in));
-            
-            
+            System.out.println("Server is running on port " + PORT);  
+            try {
+                if (Integer.parseInt(bf.readLine())==1) {
+                    List<Double> avgs = averageByClient();
+                    for (int i=0; i<avgs.size(); i++) {
+                        System.out.println("Client <" + i + "> -> " + avgs.get(i));
+                    }
+                }
+            }
+            catch (Exception e) {
+                
+            }
         }
         
         
@@ -131,6 +141,11 @@ public class Server {
                 out.println("Server registered Client " + id);
                 StringTokenizer st;
                 while(active) {
+                    if (!s.isConnected()) {
+                        deleteClient();
+                        active=false;
+                        break;
+                    }
                     st = new StringTokenizer (in.readLine(),";");
                     if (st.countTokens()==2) {
                         db = Double.parseDouble(st.nextToken());

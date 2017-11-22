@@ -45,13 +45,14 @@ public class Client {
     public static void main(String[] args) throws Exception {
         double val;
         int times=0;
+        audio = new Audio();
+        audio.connect();
         try{
             true_ = true;
-            audio = new Audio();
             s = new Socket("localhost", 6063);
             in = new BufferedReader(new InputStreamReader(s.getInputStream()));
             out = new PrintWriter(s.getOutputStream(), true);
-            audio.connect();
+            
             System.out.println(in.readLine());
             ListenThread lt = new ListenThread();
             lt.start();
