@@ -72,19 +72,41 @@ public class Server {
         
         //retorna lista com média de DB por cada cliente desde o momento da conexão
         //a lista vem ordenada exatamente como a clientInfos, e os indíces vêm exatamente como o clientInfos
-        public List<Double> averageByClient () {
+        public HashMap<Integer,Double []> averageByClient () {
             ciLock.lock();
-            List<Double> avgs = new ArrayList<>();
-            for (List<Packet> list: clientInfos) {
-                double avg = 0;
-                for (Packet p: list) {
-                    avg += p.getDB();
-                }
-                avg = (list.size()>0) ? (avg/list.size()) : -1;
-                avgs.add(avg);
+            HashMap<Integer,Double []> avgs = new HashMap<>();
+            int size = clientInfos.size();
+            List<Packet> aux;
+            for (int i = 0; i < size; i++) {
+                Double [] values = new Double[2];
+                aux = clientInfos.get(i);
+                if (aux!=null) {
+                    values = (aux.size()>0) ? averageAndSTD(i) : values;
+                    avgs.put(i,values);
+                } 
             }
             ciLock.unlock();
             return avgs;
+        }
+        
+        public Double [] averageAndSTD(int id) {
+            Double [] r = new Double[2];
+            ciLock.lock();
+            List<Packet> list = clientInfos.get(id);
+            ciLock.unlock();
+            for (Packet p: list) {
+                r[0] += p.getDB();
+            }
+            r[0] = r[0]/(list.size());
+            for (Packet p: list) {
+                r[1] += (p.getDB()-r[0])*(p.getDB()-r[0]);
+            }
+            r[1] = r[1]/((list.size())-1);
+            return r;
+        }
+        
+        public List<Double> stDeviation () {
+            return null;
         }
         
         
