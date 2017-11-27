@@ -49,25 +49,23 @@ public class Server {
     
     private static class WorkerThread extends Thread {
         
-        BufferedReader bf;
+        StringTokenizer st;
         
         public WorkerThread () {
-            bf = new BufferedReader(new InputStreamReader(System.in));
+            
         }
         
         public void run() {
-            System.out.println("Server is running on port " + PORT);  
+            System.out.println("Server is running on port " + PORT);
+            BufferedReader bf = new BufferedReader(new InputStreamReader(System.in));
             try {
-                if (Integer.parseInt(bf.readLine())==1) {
-                    List<Double> avgs = averageByClient();
-                    for (int i=0; i<avgs.size(); i++) {
-                        System.out.println("Client <" + i + "> -> " + avgs.get(i));
-                    }
+                st = new StringTokenizer (bf.readLine()," ");
+                if (st.countTokens()>1 && st.nextToken().equals("kill")) {
                 }
             }
-            catch (Exception e) {
-                
-            }
+            catch (Exception e) {}
+            
+            
         }
         
         
@@ -106,14 +104,17 @@ public class Server {
             this.threadNumber = number;
             clientCount = increment(clientCount);
             ciLock.lock();
-            clientInfos.add(new ArrayList<>());
+            clientInfos.add(id,new ArrayList<>());
             ciLock.unlock();
             active = true;
             times=0;
         }
         
+        
         public void deleteClient () {
-            clientInfos.remove(id);
+            ciLock.lock();
+            clientInfos.add(id,null);
+            ciLock.unlock();
             try {
                     in.close();
                     out.close();
@@ -141,17 +142,12 @@ public class Server {
                 out.println("Server registered Client " + id);
                 StringTokenizer st;
                 while(active) {
-                    if (!s.isConnected()) {
-                        deleteClient();
-                        active=false;
-                        break;
-                    }
                     st = new StringTokenizer (in.readLine(),";");
                     if (st.countTokens()==2) {
                         db = Double.parseDouble(st.nextToken());
                         timestamp = Long.parseLong(st.nextToken());
                         clientInfos.get(id).add(new Packet(db,timestamp));
-                        //System.out.println(++times + ": Client <" + id + "> sent " + db + " db.");
+                        System.out.println(++times + ": Client <" + id + "> sent " + db + " db.");
                     }
                     if (st.countTokens()==1) {
                         if (st.nextToken().equals("over")) {
@@ -162,6 +158,7 @@ public class Server {
                 }
             }
             catch(Exception e){
+                System.out.println("Client " + id + " cancelled suddenly.");
                 deleteClient();
             }
         }
@@ -185,6 +182,9 @@ public class Server {
         try{
             clientCount = 0;
             clientInfos = new ArrayList<>();
+            for (i=0; i<1000;i++) {
+                clientInfos.add(null);
+            }
             ss = new ServerSocket(PORT);
             WorkerThread wt = new WorkerThread();
             wt.start();
@@ -192,17 +192,14 @@ public class Server {
                 stdsLock.lock();
                 i=nextFree(stds);
                 if (i>=0) {
-                    stds[i]=new ServerThread(ss.accept(), clientInfos.size(), i);
-                    stds[i].start();
-                    stdsLock.unlock();
+                    stds[i]=new ServerThread(ss.accept(), nextFree(clientInfos.toArray()), i);
+                    stds[i].start();                   
                 }
                 else System.out.println("Every server thread is occupied. Try again later.");
+                stdsLock.unlock();
             }      
         }
-        catch(Exception e){}
-        finally{
-            stdsLock.unlock();
-            ss.close();
-        }
+        catch(Exception e){System.out.println(e.getMessage());}
+        
     }
 }
