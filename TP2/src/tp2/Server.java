@@ -15,7 +15,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author Gervásio Palha
  */
 public class Server {
-    private static final int PORT = 6063;
+    private static final int PORT = 6063, SIZE = 20;
     private static int clientCount;
     private static List<List<Packet>> clientInfos;
     private static ReentrantLock stdsLock = new ReentrantLock(), ciLock = new ReentrantLock();
@@ -47,6 +47,35 @@ public class Server {
         }
     }
     
+    private static class ClientStats {
+        int id;
+        double avg, std;
+        
+        public ClientStats (int id) {
+            this.id=id;
+            avg=0;
+            std=0;
+        }
+        public ClientStats (int id, double avg, double std) {
+            this.id=id;
+            this.avg=avg;
+            this.std=std;
+        }
+        
+        public int getID () {
+            return this.id;
+        }        
+        public double getAverage() {
+            return this.avg;
+        }
+        public double getSTD() {
+            return this.std;
+        }
+        
+    }
+    
+    
+    
     private static class WorkerThread extends Thread {
         
         StringTokenizer st;
@@ -57,13 +86,17 @@ public class Server {
         
         public void run() {
             System.out.println("Server is running on port " + PORT);
-            BufferedReader bf = new BufferedReader(new InputStreamReader(System.in));
+            List<ClientStats> cs = new ArrayList<>();
             try {
-                st = new StringTokenizer (bf.readLine()," ");
-                if (st.countTokens()>1 && st.nextToken().equals("kill")) {
-                }
+                while (true) {
+                    Thread.sleep(2000);
+                    cs = averageByClient();
+                    cs.forEach((k) -> System.out.println("Client "+k.getID()+" -> Average = "+k.getAverage()+", STD = "+k.getSTD()));
+                }             
             }
-            catch (Exception e) {}
+            catch (Exception e) {
+                System.out.println("Exception in WorketThread:" + e.getMessage());
+            }
             
             
         }
@@ -72,28 +105,25 @@ public class Server {
         
         //retorna lista com média de DB por cada cliente desde o momento da conexão
         //a lista vem ordenada exatamente como a clientInfos, e os indíces vêm exatamente como o clientInfos
-        public HashMap<Integer,Double []> averageByClient () {
-            ciLock.lock();
-            HashMap<Integer,Double []> avgs = new HashMap<>();
+        //será preciso controlo de concorrência?
+        public List<ClientStats> averageByClient () {
+            List<ClientStats> avgs = new ArrayList<>();
             int size = clientInfos.size();
             List<Packet> aux;
             for (int i = 0; i < size; i++) {
-                Double [] values = new Double[2];
+                double [] values = new double[2];
                 aux = clientInfos.get(i);
                 if (aux!=null) {
-                    values = (aux.size()>0) ? averageAndSTD(i) : values;
-                    avgs.put(i,values);
+                    values = (aux.size()>0) ? averageAndSTD(aux) : values;
+                    avgs.add(new ClientStats(i,values[0],values[1]));
                 } 
             }
-            ciLock.unlock();
             return avgs;
         }
         
-        public Double [] averageAndSTD(int id) {
-            Double [] r = new Double[2];
-            ciLock.lock();
-            List<Packet> list = clientInfos.get(id);
-            ciLock.unlock();
+        public  double [] averageAndSTD(List<Packet> list) {
+            double [] r = new double[2];
+            if (list.size()==0) return null;
             for (Packet p: list) {
                 r[0] += p.getDB();
             }
@@ -105,9 +135,7 @@ public class Server {
             return r;
         }
         
-        public List<Double> stDeviation () {
-            return null;
-        }
+        
         
         
     }
@@ -155,6 +183,8 @@ public class Server {
             deleteClient();
         }
 
+        
+        
         public void run() {
             try{
                 double db;
@@ -162,6 +192,7 @@ public class Server {
                 in = new BufferedReader(new InputStreamReader(s.getInputStream()));
                 out = new PrintWriter(s.getOutputStream(), true);
                 out.println("Server registered Client " + id);
+                System.out.println("Good "+id);
                 StringTokenizer st;
                 while(active) {
                     st = new StringTokenizer (in.readLine(),";");
@@ -169,7 +200,6 @@ public class Server {
                         db = Double.parseDouble(st.nextToken());
                         timestamp = Long.parseLong(st.nextToken());
                         clientInfos.get(id).add(new Packet(db,timestamp));
-                        System.out.println(++times + ": Client <" + id + "> sent " + db + " db.");
                     }
                     if (st.countTokens()==1) {
                         if (st.nextToken().equals("over")) {
@@ -180,7 +210,9 @@ public class Server {
                 }
             }
             catch(Exception e){
+                System.out.println(e.getMessage());
                 System.out.println("Client " + id + " cancelled suddenly.");
+                System.out.flush();
                 deleteClient();
             }
         }
@@ -204,7 +236,7 @@ public class Server {
         try{
             clientCount = 0;
             clientInfos = new ArrayList<>();
-            for (i=0; i<1000;i++) {
+            for (i=0; i<SIZE;i++) {
                 clientInfos.add(null);
             }
             ss = new ServerSocket(PORT);

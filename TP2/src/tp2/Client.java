@@ -34,6 +34,7 @@ public class Client {
                }
                catch (Exception e) {
                    out.println("over");
+                   System.out.println("Server probably closed.");
                    true_=false;
                    listen=false;
                }
