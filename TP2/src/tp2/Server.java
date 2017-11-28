@@ -1,8 +1,3 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package tp2;
 
 import java.util.*;
@@ -12,14 +7,14 @@ import java.util.concurrent.locks.ReentrantLock;
 
 /**
  *
- * @author Gervásio Palha
+ * @author Gervásio Palhas
  */
 public class Server {
     private static final int PORT = 6063;
     private static int clientCount;
     private static List<List<Packet>> clientInfos;
-    private static ReentrantLock stdsLock = new ReentrantLock(), ciLock = new ReentrantLock();
-    private static ServerThread [] stds = new ServerThread[1000];
+    private static final ReentrantLock stdsLock = new ReentrantLock(), ciLock = new ReentrantLock();
+    private static final ServerThread [] stds = new ServerThread[1000];
     
     private static class Packet {
         long timestamp;
@@ -50,14 +45,13 @@ public class Server {
     private static class WorkerThread extends Thread {
         
         public WorkerThread () {
-            
         }
         
+        @Override
         public void run() {
             System.out.println("Server is running on port " + PORT);
             //BufferedReader bf = new BufferedReader(new InputStreamReader(System.in));
-            
-            
+
         }
         
         
@@ -80,6 +74,35 @@ public class Server {
         }
         
         
+        public List<Double> medianByClient(){
+            List<Double> medians = new ArrayList<> ();
+            double median = 0.0;
+            int m;
+            
+            ciLock.lock();
+            try {
+                for(List<Packet> pt: clientInfos){
+                    median = 0.0;
+                    m = pt.size()/2;
+                    Collections.sort(pt, (Packet t, Packet t1) -> {
+                        Double x = (Double) t.getDB();
+                        Double y = (Double) t1.getDB();
+                        return x.compareTo(y);
+                    });
+                    
+                    median = pt.size()%2 == 1 ? pt.get(m).getDB() : (pt.get(m-1).getDB()+pt.get(m).getDB())/2.0;
+                    
+                    medians.add(median);
+                    
+                }
+            } finally {
+                ciLock.unlock();
+            }
+            
+            return medians;
+        }
+               
+        
     }
     
     private static class ServerThread extends Thread{
@@ -89,6 +112,7 @@ public class Server {
         PrintWriter out;
         int times;
         boolean active;
+        private Audio a;
 
         public ServerThread(Socket s, int id, int number){
             this.s = s;
@@ -100,6 +124,10 @@ public class Server {
             ciLock.unlock();
             active = true;
             times=0;
+           
+            this.a = new Audio();
+            a.fillTablExposure();
+            a.fillTablEvalutaion();
         }
         
         public void deleteClient () {
@@ -121,6 +149,12 @@ public class Server {
             out.println("kill");
             deleteClient();
         }
+        
+        public void checkIntensity(double db){
+            if(db > 65){
+                System.out.println("Excess of Intensity");
+            }
+        }
 
         public void run() {
             try{
@@ -135,6 +169,7 @@ public class Server {
                     if (st.countTokens()==2) {
                         db = Double.parseDouble(st.nextToken());
                         timestamp = Long.parseLong(st.nextToken());
+                        checkIntensity(db);
                         clientInfos.get(id).add(new Packet(db,timestamp));
                         //System.out.println(++times + ": Client <" + id + "> sent " + db + " db.");
                     }
@@ -173,15 +208,19 @@ public class Server {
             ss = new ServerSocket(PORT);
             WorkerThread wt = new WorkerThread();
             wt.start();
+            
             while(true) {
                 stdsLock.lock();
-                i=nextFree(stds);
-                if (i>=0) {
-                    stds[i]=new ServerThread(ss.accept(), clientInfos.size(), i);
-                    stds[i].start();
+                try {
+                    i=nextFree(stds);
+                    if (i>=0) {
+                        stds[i]=new ServerThread(ss.accept(), clientInfos.size(), i);
+                        stds[i].start();
+                    }
+                    else System.out.println("Every server thread is occupied. Try again later.");
+                } finally {
                     stdsLock.unlock();
                 }
-                else System.out.println("Every server thread is occupied. Try again later.");
             }      
         }
         catch(Exception e){}
