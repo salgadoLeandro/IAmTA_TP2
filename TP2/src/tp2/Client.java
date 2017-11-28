@@ -31,6 +31,7 @@ public class Client {
                    }
                }catch (Exception e) {
                    out.println("over");
+                   System.out.println("Server probably closed.");
                    true_=false;
                    listen=false;
                }
@@ -43,17 +44,21 @@ public class Client {
         double val;
         int times=0;
         
+        audio = new Audio();
+        audio.connect();
+
         try{
-            ListenThread lt = new ListenThread();
             true_ = true;
-            audio = new Audio();
             s = new Socket("localhost", 6063);
             in = new BufferedReader(new InputStreamReader(s.getInputStream()));
             out = new PrintWriter(s.getOutputStream(), true);
             
+
             audio.connect();
             
             System.out.println(in.readLine());           
+            ListenThread lt = new ListenThread();
+
             lt.start();
             
             while(true_){
