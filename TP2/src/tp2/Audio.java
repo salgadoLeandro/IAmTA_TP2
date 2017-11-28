@@ -54,10 +54,10 @@ public class Audio {
             rmsValue += (short) buffer[i] * (short) buffer[i];
         }
         
-        rmsValue = rmsValue / bufferSize;
+        rmsValue /= bufferSize;
         rmsValue = Math.sqrt(rmsValue);
         splValue = 20 * Math.log10(rmsValue / P0);
-        splValue = splValue + CALIBRATION_VALUE;
+        splValue += CALIBRATION_VALUE;
         splValue = Math.round(splValue * 100) / 100;
         
         if (mMaxValue < splValue) {
@@ -74,6 +74,8 @@ public class Audio {
         return resp;
     }
     
+    //chave -> valor int dos decibéis
+    //valor -> valor float do limite de tempo de exposição
     public void fillTablExposure(){
         tablExposure = new HashMap<> ();
         List<Integer> aux = new ArrayList<> ();
@@ -227,6 +229,7 @@ public class Audio {
         }
     }
     
+    // map.get( chave ), chave -> (((int)dbs-85) / 3) * 3 + 85
     public void createExposureEvaluation(int decibel){
         Integer aux = (Integer) decibel;
         List<Integer> dbs;
