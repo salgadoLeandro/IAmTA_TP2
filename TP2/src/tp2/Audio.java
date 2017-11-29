@@ -18,9 +18,16 @@ public class Audio {
     private DataLine.Info info;
     private TargetDataLine line;
     private HashMap<String,List<Double>> tablEvaluation;
-    private HashMap<List<Integer>,String> tablExposure;
+    private HashMap<Integer,Double> tablExposure;
     private static final double CALIBRATION_VALUE = -80;
     double mMaxValue;
+    
+    public Audio(){ }
+    
+    public Audio(boolean bool){
+        this.fillTablExposure();
+        this.fillTablEvaluation();
+    }
     
     public boolean connect() throws LineUnavailableException{
         boolean resp = true;
@@ -74,68 +81,29 @@ public class Audio {
         return resp;
     }
     
-    //chave -> valor int dos decibéis
-    //valor -> valor float do limite de tempo de exposição
     public void fillTablExposure(){
-        tablExposure = new HashMap<> ();
-        List<Integer> aux = new ArrayList<> ();
+        tablExposure = new HashMap<>();
         
-        aux.add(85);
-        aux.add(88);
-        tablExposure.put(aux,"8 Hours");
-        aux= new ArrayList<> ();
+        tablExposure.put(85, 28800.0);
+        tablExposure.put(88, 14400.0);
+        tablExposure.put(91, 7200.0);
+        tablExposure.put(94, 3600.0);
+        tablExposure.put(97, 1800.0);
+        tablExposure.put(100, 900.0);
+        tablExposure.put(103, 450.0);
+        tablExposure.put(106, 222.0);
+        tablExposure.put(109, 112.0);
+        tablExposure.put(112, 56.0);
+        tablExposure.put(115, 28.0);
+        tablExposure.put(118, 14.0);
+        tablExposure.put(121, 7.0);
+        tablExposure.put(124, 3.0);
+        tablExposure.put(127, 1.0);
+        tablExposure.put(130, 0.0);
         
-        aux.add(88);
-        aux.add(91);
-        tablExposure.put(aux,"4 Hours");
-        aux= new ArrayList<> ();
-        
-        aux.add(91);
-        aux.add(94);
-        tablExposure.put(aux,"2 Hours");
-        aux= new ArrayList<> ();
-        
-        aux.add(94);
-        aux.add(97);
-        tablExposure.put(aux,"1 Hour");
-        aux= new ArrayList<> ();
-        
-        aux.add(97);
-        aux.add(100);
-        tablExposure.put(aux,"30 minutes");
-        aux= new ArrayList<> ();
-        
-        aux.add(100);
-        aux.add(103);
-        tablExposure.put(aux,"15 minutes");
-        aux= new ArrayList<> ();
-        
-        aux.add(103);
-        aux.add(106);
-        tablExposure.put(aux,"7.5 minutes");
-        aux= new ArrayList<> ();
-        
-        aux.add(106);
-        aux.add(109);
-        tablExposure.put(aux,"4 minutes");
-        aux= new ArrayList<> ();
-        
-        aux.add(109);
-        aux.add(112);
-        tablExposure.put(aux,"2 minutes");
-        aux= new ArrayList<> ();
-        
-        aux.add(112);
-        aux.add(115);
-        tablExposure.put(aux,"1 minute");
-        aux= new ArrayList<> ();
-        
-        aux.add(115);
-        tablExposure.put(aux,"30 seconds");
-        aux= new ArrayList<> ();
     }
     
-    public void fillTablEvalutaion(){
+    public void fillTablEvaluation(){
         tablEvaluation = new HashMap<> ();
         ArrayList<Double> aux = new ArrayList<> ();
         
@@ -229,21 +197,12 @@ public class Audio {
         }
     }
     
-    // map.get( chave ), chave -> (((int)dbs-85) / 3) * 3 + 85
-    public void createExposureEvaluation(int decibel){
-        Integer aux = (Integer) decibel;
-        List<Integer> dbs;
+    
+    public double evaluateExposure(double decibel){
+        if(decibel > 130.0) return tablExposure.get(130.0);
+        if(decibel < 85.0) return tablExposure.get(85);
+        return tablExposure.get((((int)decibel - 85) / 3) * 3 + 85);
         
-        for(Map.Entry<List<Integer>,String> kp : tablExposure.entrySet()){
-            dbs = kp.getKey();
-            if(dbs.size() == 2){
-                if(dbs.get(0) <= aux && dbs.get(1) > aux ){
-                  System.out.println(kp.getValue());
-                }   
-            }else if (dbs.size() == 1){
-                System.out.println(kp.getValue());
-            }
-        }
     }
         
 }
