@@ -10,7 +10,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author Gervásio Palhas
  */
 public class Server {
-    private static final int PORT = 6063, SIZE = 20;
+    private static final int PORT = 6063, SIZE = 20, DEFAULT_TIME=5000;
     private static int clientCount;
     private static List<List<Packet>> clientInfos;
     private static final ReentrantLock stdsLock = new ReentrantLock(), ciLock = new ReentrantLock();
@@ -74,22 +74,27 @@ public class Server {
     private static class WorkerThread extends Thread {
         
         StringTokenizer st;
+        boolean cycle;
+        BufferedReader bf;
+        Audio audio;
         
         public WorkerThread () {
+            cycle=true;
+            bf = new BufferedReader(new InputStreamReader(System.in));
+            audio = new Audio();
         }
         
         @Override
         public void run() {
             System.out.println("Server is running on port " + PORT);
 
-            //BufferedReader bf = new BufferedReader(new InputStreamReader(System.in));
-
-
             List<ClientStats> cs = new ArrayList<>();
+            
             try {
-                while (true) {
+                
+                while (cycle) {
                     Thread.sleep(2000);
-                    cs = averageByClient();
+                    cs = statsByClient();
                     cs.forEach((k) -> System.out.println("Client "+k.getID()+" -> Average = "+k.getAverage()+", STD = "+k.getSTD()));
                 }             
             }
@@ -106,7 +111,7 @@ public class Server {
         //retorna lista com média de DB por cada cliente desde o momento da conexão
         //a lista vem ordenada exatamente como a clientInfos, e os indíces vêm exatamente como o clientInfos
         //será preciso controlo de concorrência?
-        public List<ClientStats> averageByClient () {
+        public List<ClientStats> statsByClient () {
             List<ClientStats> avgs = new ArrayList<>();
             int size = clientInfos.size();
             List<Packet> aux;
