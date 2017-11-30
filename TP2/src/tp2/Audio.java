@@ -25,8 +25,10 @@ public class Audio {
     public Audio(){ }
     
     public Audio(boolean bool){
-        this.fillTablExposure();
-        this.fillTablEvaluation();
+        if(true) {
+            this.fillTablExposure();
+            this.fillTablEvaluation();
+        }
     }
     
     public boolean connect() throws LineUnavailableException{
@@ -81,7 +83,7 @@ public class Audio {
         return resp;
     }
     
-    public void fillTablExposure(){
+    public final void fillTablExposure(){
         tablExposure = new HashMap<>();
         
         tablExposure.put(85, 28800.0);
@@ -103,7 +105,7 @@ public class Audio {
         
     }
     
-    public void fillTablEvaluation(){
+    public final void fillTablEvaluation(){
         tablEvaluation = new HashMap<> ();
         ArrayList<Double> aux = new ArrayList<> ();
         
@@ -175,7 +177,7 @@ public class Audio {
         
         aux.add(165.0);
         tablEvaluation.put("Rocket Launch",aux);
-        aux= new ArrayList<> ();
+        aux= null;
     }
     
     public void createInstaEvaluation(double decibel){
@@ -202,7 +204,6 @@ public class Audio {
         if(decibel > 130.0) return tablExposure.get(130.0);
         if(decibel < 85.0) return tablExposure.get(85);
         return tablExposure.get((((int)decibel - 85) / 3) * 3 + 85);
-        
     }
         
 }

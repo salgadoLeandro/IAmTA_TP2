@@ -15,7 +15,7 @@ public class Client {
     private static Socket s;
     private static boolean true_;
     
-    public static class ListenThread extends Thread {
+    private static class ListenThread extends Thread {
         boolean listen = true;
         String s;
         

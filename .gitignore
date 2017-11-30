@@ -34,3 +34,7 @@
 .Trashes
 ehthumbs.db
 Thumbs.db
+TP2/build/classes/tp2/Audio.class
+*.class
+TP2/nbproject/private/private.properties
+TP2/nbproject/private/private.xml
