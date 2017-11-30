@@ -34,3 +34,6 @@
 .Trashes
 ehthumbs.db
 Thumbs.db
+*.class
+TP2/nbproject/private/private.properties
+TP2/nbproject/private/private.xml
