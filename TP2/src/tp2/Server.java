@@ -10,13 +10,11 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author Gervásio Palhas
  */
 public class Server {
-    private static final int PORT = 6063, SIZE = 20, QUANT = 1000;
+    private static final int PORT = 6063, SIZE = 20;
     private static int clientCount;
     private static List<List<Packet>> clientInfos;
     private static final ReentrantLock stdsLock = new ReentrantLock(), ciLock = new ReentrantLock();
-    private static final ServerThread[] stds = new ServerThread[QUANT];
-    private static final ReentrantLock[] stBufferLock = new ReentrantLock[QUANT];
-    private static Audio audio = null;
+    private static final ServerThread [] stds = new ServerThread[1000];
     
     private static class Packet {
         long timestamp;
@@ -71,6 +69,8 @@ public class Server {
         
     }
     
+    
+    
     private static class WorkerThread extends Thread {
         
         StringTokenizer st;
@@ -97,7 +97,11 @@ public class Server {
                 System.out.println("Exception in WorketThread:" + e.getMessage());
             }
             
+            
+
         }
+        
+        
         
         //retorna lista com média de DB por cada cliente desde o momento da conexão
         //a lista vem ordenada exatamente como a clientInfos, e os indíces vêm exatamente como o clientInfos
@@ -119,15 +123,15 @@ public class Server {
         
         public  double [] averageAndSTD(List<Packet> list) {
             double [] r = new double[2];
-            if (list.isEmpty()) return null;
+            if (list.size()==0) return null;
             for (Packet p: list) {
                 r[0] += p.getDB();
             }
-            r[0] /= (list.size());
+            r[0] = r[0]/(list.size());
             for (Packet p: list) {
                 r[1] += (p.getDB()-r[0])*(p.getDB()-r[0]);
             }
-            r[1] /= ((list.size())-1);
+            r[1] = r[1]/((list.size())-1);
             return r;
         }
         
@@ -165,84 +169,14 @@ public class Server {
         
     }
     
-    private static class IntensityWorker extends Thread{
-        private int id;
-        private int interval;
-        private double timeInterval;
-        private List<Packet> buffer;
-        private List<Double> temp;
-        private boolean run;
-        
-        public IntensityWorker(int id, int interval, List<Packet> buffer){
-            this.id = id;
-            this.interval = interval;
-            this.buffer = buffer;
-            this.run = true;
-        }
-        
-        @Override
-        public void run(){
-            while(run){
-                temp = new ArrayList<>();
-                stBufferLock[id].lock();
-                for(Packet p : buffer){
-                    temp.add(p.getDB());
-                }
-                timeInterval = buffer.get(buffer.size() - 1).timestamp - buffer.get(0).timestamp;
-                buffer.clear();
-                stBufferLock[id].unlock();
-                
-                double avg = average(temp);
-                double std_dev = stdDeviation(temp);
-                
-                //outras coisas
-            }
-        }
-        
-        public void end(){
-            run = false;
-        }
-        
-        public static double average(List<Double> values){
-            double avg = 0.0;
-            
-            if(values.isEmpty())
-                return 0.0;
-            
-            
-            for(Double d : values){
-                avg += d;
-            }
-            return avg / values.size();
-        }
-        
-        public static double stdDeviation(List<Double> values){
-            double stdev = 0.0, temp = 0.0;
-            double avg = 0.0;
-            
-            if(values.size() < 2) return 0.0;
-            
-            avg = average(values);
-            
-            for(Double d : values){
-                temp += Math.pow(d - avg, 2);
-            }
-            
-            stdev = Math.sqrt(temp / values.size());
-            
-            return stdev;
-        }
-    }
-    
     private static class ServerThread extends Thread{
-        private int id, threadNumber;
-        private Socket s;
-        private BufferedReader in;
-        private PrintWriter out;
-        private int times;
-        private boolean active;
-        private List<Packet> buffer;
-        private static final int interval = 5;
+        int id, threadNumber;
+        Socket s;
+        BufferedReader in;
+        PrintWriter out;
+        int times;
+        boolean active;
+        private Audio a;
 
         public ServerThread(Socket s, int id, int number){
             this.s = s;
@@ -254,7 +188,10 @@ public class Server {
             ciLock.unlock();
             active = true;
             times=0;
-            buffer = new ArrayList<>();
+           
+            this.a = new Audio();
+            a.fillTablExposure();
+            a.fillTablEvaluation();
         }
         
         
@@ -271,7 +208,6 @@ public class Server {
             finally {
                 stdsLock.lock();
                 stds[threadNumber]=null;
-                stBufferLock[threadNumber]=null;
                 stdsLock.unlock();
             }
         }
@@ -281,11 +217,15 @@ public class Server {
             deleteClient();
         }
         
-        @Override
+        public void checkIntensity(double db){
+            if(db > 65){
+                System.out.println("Excess of Intensity");
+            }
+        }
+
+        
+        
         public void run() {
-            Packet p;
-            IntensityWorker iw = new IntensityWorker(id, interval, buffer);
-            iw.start();
             try{
                 double db;
                 long timestamp;
@@ -298,15 +238,9 @@ public class Server {
                     st = new StringTokenizer (in.readLine(),";");
                     if (st.countTokens()==2) {
                         db = Double.parseDouble(st.nextToken());
-                        if(audio.evaluateExposure(db) < interval)
-                            System.out.println("Too loud, Client " + id);
                         timestamp = Long.parseLong(st.nextToken());
-                        p = new Packet(db, timestamp);
-                        clientInfos.get(id).add(p);
-                        
-                        stBufferLock[threadNumber].lock();
-                        buffer.add(p);
-                        stBufferLock[threadNumber].unlock();
+                        checkIntensity(db);
+                        clientInfos.get(id).add(new Packet(db,timestamp));
                     }
                     if (st.countTokens()==1) {
                         if (st.nextToken().equals("over")) {
@@ -321,7 +255,6 @@ public class Server {
                 System.out.println("Client " + id + " cancelled suddenly.");
                 System.out.flush();
                 deleteClient();
-                iw.end();
             }
         }
     }
@@ -341,11 +274,10 @@ public class Server {
     public static void main(String[] args) throws Exception{
         ServerSocket ss = null;
         int i=0;
-        audio = new Audio(true);
         try{
             clientCount = 0;
             clientInfos = new ArrayList<>();
-            for (i=0; i < SIZE; i++) {
+            for (i=0; i<SIZE;i++) {
                 clientInfos.add(null);
             }
             ss = new ServerSocket(PORT);
@@ -358,21 +290,18 @@ public class Server {
                 try {
                     i=nextFree(stds);
                     if (i>=0) {
-                        stds[i] = new ServerThread(ss.accept(), clientInfos.size(), i);
+                        stds[i]=new ServerThread(ss.accept(), clientInfos.size(), i);
                         stds[i].start();
-                        stBufferLock[i] = new ReentrantLock();
                     }
                     else System.out.println("Every server thread is occupied. Try again later.");
                 } finally {
                     stdsLock.unlock();
                 }
-                
-                //isto parece cópia do que tá em cima. confirmas? #overhere
+
                 i=nextFree(stds);
                 if (i>=0) {
-                    stds[i] = new ServerThread(ss.accept(), nextFree(clientInfos.toArray()), i);
-                    stds[i].start();
-                    stBufferLock[i] = new ReentrantLock();
+                    stds[i]=new ServerThread(ss.accept(), nextFree(clientInfos.toArray()), i);
+                    stds[i].start();                   
                 }
                 else System.out.println("Every server thread is occupied. Try again later.");
                 stdsLock.unlock();
