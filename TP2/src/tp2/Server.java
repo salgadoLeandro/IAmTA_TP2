@@ -196,7 +196,7 @@ public class Server {
            
             this.a = new Audio();
             a.fillTablExposure();
-            a.fillTablEvalutaion();
+            a.fillTablEvaluation();
         }
         
         
