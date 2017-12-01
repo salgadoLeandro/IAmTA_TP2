@@ -15,9 +15,9 @@ public class Server {
     private static int clientCount;
     private static List<List<Packet>> clientInfos;
     private static List<Packet> buffer;
-    private static final ReentrantLock stdsLock = new ReentrantLock(), ciLock = new ReentrantLock();
-    private static final ReentrantLock bufferlock = new ReentrantLock();
-    private static final ServerThread[] stds = new ServerThread[QUANT];
+    private static ReentrantLock stdsLock = new ReentrantLock(), ciLock = new ReentrantLock();
+    private static ReentrantLock bufferlock = new ReentrantLock();
+    private static ServerThread[] stds = new ServerThread[QUANT];
     private static Audio audio = null;
     
     private static class Packet {
@@ -34,7 +34,7 @@ public class Server {
             return timestamp;
         }
         
-        public void setTimestamp(long timetamp){
+        public void setTimestamp(long timestamp){
             this.timestamp = timestamp;
         }
         
@@ -94,7 +94,7 @@ public class Server {
         public WorkerThread () {
             cycle=true;
             bf = new BufferedReader(new InputStreamReader(System.in));
-            avg = stdev = 0.0;
+            avg = 0.0; stdev = 0.0;
             duration = 0;
         }
         
@@ -102,7 +102,7 @@ public class Server {
         public void run() {
             System.out.println("Server is running on port " + PORT);
 
-            List<ClientStats> cs = new ArrayList<>();
+            List<ClientStats> cs;
             
             try {
                 
@@ -169,30 +169,27 @@ public class Server {
         private double[] averageAndSTD(List<Packet> list) {
             double [] r = new double[2];
             List<Double> temp;
-            if (list.isEmpty()) return null;
+            if (list.isEmpty()){ return null; }
             
             temp = list.stream().map(Packet::getDB).collect(Collectors.toList());
             
             r[0] = average(temp);
-            if(!(list.size() < 2))
-                ;
             r[1] = list.size() < 2 ? 0 : stdDeviation(temp);
             return r;
         }
         
         private List<Double> medianByClient(){
             List<Double> medians = new ArrayList<> ();
-            double median = 0.0;
+            double median;
             int m;
             
             ciLock.lock();
             try {
                 for(List<Packet> pt: clientInfos){
-                    median = 0.0;
                     m = pt.size()/2;
                     Collections.sort(pt, (Packet t, Packet t1) -> {
-                        Double x = (Double) t.getDB();
-                        Double y = (Double) t1.getDB();
+                        Double x = t.getDB();
+                        Double y = t1.getDB();
                         return x.compareTo(y);
                     });
                     
@@ -225,27 +222,36 @@ public class Server {
             this.id=id;
             this.threadNumber = number;
             clientCount = increment(clientCount);
-            ciLock.lock();
-            clientInfos.add(id,new ArrayList<>());
-            ciLock.unlock();
+            try{
+                ciLock.lock();
+                clientInfos.add(id,new ArrayList<>());
+            }finally{
+                ciLock.unlock();
+            }
             active = true;
             times=0;
         }
         
         
         public void deleteClient () {
-            ciLock.lock();
-            clientInfos.add(id,null);
-            ciLock.unlock();
+            try{
+                ciLock.lock();
+                clientInfos.add(id,null);
+            }finally{
+                ciLock.unlock();
+            }
+            
             try {
-                    in.close();
-                    out.close();
-                    s.close();
-                }
+                in.close();
+                out.close();
+                s.close();
+            }
             catch (Exception e2) {}
-            finally {
+            
+            try{
                 stdsLock.lock();
                 stds[threadNumber]=null;
+            }finally{
                 stdsLock.unlock();
             }
         }
@@ -256,6 +262,7 @@ public class Server {
         }
         
         //vou fazer cenas aqui l8r
+        @Override
         public void run() {
             try{
                 double db;
@@ -297,13 +304,13 @@ public class Server {
     }
     
     private static synchronized int increment(int x){
-        return ++x;
+        return x + 1;
     }
     
     private static int nextFree (Object [] array) {
         int size = array.length;
         for (int i = 0; i < size; i++) {
-            if (array[i]==null) return i;
+            if (array[i]==null){ return i; }
         }
         return -1;
     }
@@ -311,8 +318,7 @@ public class Server {
     public static double average(List<Double> values){
         double avg = 0.0;
 
-        if(values.isEmpty())
-            return 0.0;
+        if(values.isEmpty()){ return 0.0; }
 
 
         for(Double d : values){
@@ -323,10 +329,9 @@ public class Server {
     }
 
     public static double stdDeviation(List<Double> values){
-        double stdev = 0.0, temp = 0.0;
-        double avg = 0.0;
+        double stdev, avg, temp = 0.0;
 
-        if(values.size() < 2) return 0.0;
+        if(values.size() < 2){ return 0.0; }
 
         avg = average(values);
 
@@ -340,8 +345,8 @@ public class Server {
     }
     
     public static void main(String[] args) throws Exception{
-        ServerSocket ss = null;
-        int i=0;
+        ServerSocket ss;
+        int i;
         audio = new Audio(true);
         buffer = new ArrayList<>();
         try{
@@ -362,7 +367,7 @@ public class Server {
                         stds[i]=new ServerThread(ss.accept(), clientInfos.size(), i);
                         stds[i].start();
                     }
-                    else System.out.println("Every server thread is occupied. Try again later.");
+                    else{ System.out.println("Every server thread is occupied. Try again later."); }
                 } finally {
                     stdsLock.unlock();
                 }
