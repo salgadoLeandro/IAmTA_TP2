@@ -15,7 +15,7 @@ public class Client {
     private static Socket s;
     private static boolean true_;
     
-    public static class ListenThread extends Thread {
+    private static class ListenThread extends Thread {
         boolean listen = true;
         String s;
         
@@ -65,7 +65,7 @@ public class Client {
                 val = audio.capture();
                 System.out.println(++times + ": This place has " + val + " db.");
                 out.println(val + ";" +  System.currentTimeMillis());
-                Thread.sleep(2000);
+                Thread.sleep(1000);
             }
 
         }catch(Exception e){

@@ -25,8 +25,10 @@ public class Audio {
     public Audio(){ }
     
     public Audio(boolean bool){
-        this.fillTablExposure();
-        this.fillTablEvaluation();
+        if(bool){
+            this.fillTablExposure();
+            this.fillTablEvaluation();
+        }
     }
     
     public boolean connect() throws LineUnavailableException{
@@ -81,7 +83,7 @@ public class Audio {
         return resp;
     }
     
-    public void fillTablExposure(){
+    public final void fillTablExposure(){
         tablExposure = new HashMap<>();
         
         tablExposure.put(85, 28800.0);
@@ -103,7 +105,7 @@ public class Audio {
         
     }
     
-    public void fillTablEvaluation(){
+    public final void fillTablEvaluation(){
         tablEvaluation = new HashMap<> ();
         ArrayList<Double> aux = new ArrayList<> ();
         
@@ -111,71 +113,71 @@ public class Audio {
         aux.add(15.0);
         
         tablEvaluation.put("Soft Sound", aux);
-        aux= new ArrayList<> ();
+        aux = new ArrayList<> ();
         
         aux.add(16.0);
         aux.add(45.0);
         tablEvaluation.put("Whisper",aux);
-        aux= new ArrayList<> ();
+        aux = new ArrayList<> ();
         
         aux.add(45.0);
         aux.add(55.0);
         tablEvaluation.put("Rainfall",aux);
-        aux= new ArrayList<> ();
+        aux = new ArrayList<> ();
         
         aux.add(55.0);
         aux.add(65.0);
         tablEvaluation.put("Typical speech",aux);
-        aux= new ArrayList<> ();
+        aux = new ArrayList<> ();
         
         aux.add(65.0);
         aux.add(75.0);
         tablEvaluation.put("Washing Machine",aux);
-        aux= new ArrayList<> ();
+        aux = new ArrayList<> ();
         
         aux.add(75.0);
         aux.add(85.0);
         tablEvaluation.put("Busy city traffic",aux);
-        aux= new ArrayList<> ();
+        aux = new ArrayList<> ();
         
         aux.add(85.0);
         aux.add(95.0);
         tablEvaluation.put("Gas mower or hair dryer",aux);
-        aux= new ArrayList<> ();
+        aux = new ArrayList<> ();
         
         aux.add(95.0);
         aux.add(105.0);
         tablEvaluation.put("Walkman or tractor",aux);
-        aux= new ArrayList<> ();
+        aux = new ArrayList<> ();
         
         aux.add(105.0);
         aux.add(115.0);
         tablEvaluation.put("Leaf blower or rock concert or chainsaw",aux);
-        aux= new ArrayList<> ();
+        aux = new ArrayList<> ();
         
         aux.add(155.0);
         aux.add(125.0);
         tablEvaluation.put("Ambulance or jack hammer",aux);
-        aux= new ArrayList<> ();
+        aux = new ArrayList<> ();
         
         aux.add(125.0);
         aux.add(135.0);
         tablEvaluation.put("Jet plane (from 100 ft.)",aux);
-        aux= new ArrayList<> ();
+        aux = new ArrayList<> ();
         
         aux.add(135.0);
         aux.add(145.0);
         tablEvaluation.put("Fireworks or gun shot",aux);
-        aux= new ArrayList<> ();
+        aux = new ArrayList<> ();
         
         aux.add(145.0);
         aux.add(165.0);
         tablEvaluation.put("12-gauge shotgun",aux);
-        aux= new ArrayList<> ();
+        aux = new ArrayList<> ();
         
         aux.add(165.0);
         tablEvaluation.put("Rocket Launch",aux);
-        aux= new ArrayList<> ();
+        aux = null;
     }
     
     public void createInstaEvaluation(double decibel){
