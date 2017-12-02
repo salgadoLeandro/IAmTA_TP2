@@ -11,13 +11,14 @@ import java.util.stream.Collectors;
  * @author Gervásio Palhas
  */
 public class Server {
-    private static final int PORT = 6063, SIZE = 20, DEFAULT_TIME = 5000, QUANT = 1000, INTERVAL = 5000;
+    private static final int PORT = 6063, SIZE = 20, DEFAULT_TIME = 5000, QUANT = 1000, INTERVAL = 2000;
     private static int clientCount;
     private static List<List<Packet>> clientInfos;
     private static List<Packet> buffer;
     private static ReentrantLock stdsLock = new ReentrantLock(), ciLock = new ReentrantLock();
-    private static ReentrantLock bufferlock = new ReentrantLock();
+    private static ReentrantLock bufferlock = new ReentrantLock(), csLock = new ReentrantLock();
     private static ServerThread[] stds = new ServerThread[QUANT];
+    private static List<ClientStats> clientStats = new ArrayList<>();
     private static Audio audio = null;
     
     private static class Packet {
@@ -26,6 +27,7 @@ public class Server {
         int client_id;
         
         public Packet (int id, double db, long timestamp) {
+            this.client_id=id;
             this.db=db;
             this.timestamp=timestamp;
         }
@@ -56,29 +58,56 @@ public class Server {
     }
     
     private static class ClientStats {
-        int id;
+        int id, number;
         double avg, std;
         
         public ClientStats (int id) {
             this.id=id;
             avg=0;
             std=0;
+            number=0;
         }
         public ClientStats (int id, double avg, double std) {
             this.id=id;
             this.avg=avg;
             this.std=std;
+            this.number=number;
+        }
+
+        public int getId() {
+            return id;
+        }
+
+        public void setId(int id) {
+            this.id = id;
+        }
+
+        public int getNumber() {
+            return number;
+        }
+
+        public void setNumber(int number) {
+            this.number = number;
+        }
+
+        public double getAvg() {
+            return avg;
+        }
+
+        public void setAvg(double avg) {
+            this.avg = avg;
+        }
+
+        public double getStd() {
+            return std;
+        }
+
+        public void setStd(double std) {
+            this.std = std;
         }
         
-        public int getID () {
-            return this.id;
-        }        
-        public double getAverage() {
-            return this.avg;
-        }
-        public double getSTD() {
-            return this.std;
-        }
+        
+        
         
     }
     
@@ -101,25 +130,56 @@ public class Server {
         @Override
         public void run() {
             System.out.println("Server is running on port " + PORT);
-
-            List<ClientStats> cs;
+            
+            List<ClientStats> cs = statsByClient();
             
             try {
                 
                 while (cycle) {
-                    Thread.sleep(5000);
-                    cs = statsByClient();
+                    Thread.sleep(INTERVAL);
+                    clientStats.forEach((ClientStats k) -> {
+                        if (k!=null) System.out.printf("FAST - Client %d -> Average = %f, STD = %f, test = %d\n", k.getId(), k.getAvg(), k.getStd(),cs.size());
+                    });
                     cs.forEach((ClientStats k) -> {
-                        System.out.printf("Client %d -> Average = %f, STD = %f\n", k.getID(), k.getAverage(), k.getSTD());
+                        System.out.printf("NORMAL - Client %d -> Average = %f, STD = %f\n", k.getId(), k.getAvg(), k.getStd());
                     });
                     processBuffer();
-                    
                 }             
             }
             catch (Exception e) {
-                System.out.println("Exception in WorketThread:" + e.getMessage());
+                System.out.println("Exception in WorketThread: ");
+                e.printStackTrace();
+            }   
+        }
+        
+        private void testStuff() {   
+            double [] test = {1,2,3,4,5,6,789,71,46,6,3,3};
+            double avg = 0;
+            for (int i = 0; i < test.length; i++) {
+                avg+=test[i];
+            } 
+            avg /= test.length;
+            System.out.println(avg);        
+            double fast = 0;
+            for (int i = 0; i < test.length-1; i++) {
+                fast+=test[i];
+            } 
+            fast /= (test.length - 1);
+            fast = fastAvg(fast,test.length-1,3);
+            System.out.println(fast);
+            double std = 0;
+            for (int i = 0; i < test.length; i++) {
+                std += Math.pow(test[i]-avg,2);
             }
-            
+            std = Math.sqrt(std/test.length);
+            System.out.println("Std -> " + std);
+            double faststd = 0;
+            for (int i = 0; i < test.length-1; i++) {
+                faststd += Math.pow(test[i]-avg,2);
+            }
+            faststd = faststd/(test.length-1);
+            faststd = fastStd(avg,test.length-1,3,faststd);
+            System.out.println("FastSTD -> " + faststd);
         }
         
         private void processBuffer(){
@@ -142,10 +202,8 @@ public class Server {
                 }
             }
             
-            vals = averageAndSTD(local);
-            
+            vals = averageAndSTD(local);            
             //fazer coisas com média e desvio padrão
-            
         }
         
         //retorna lista com média de DB por cada cliente desde o momento da conexão
@@ -225,6 +283,7 @@ public class Server {
             try{
                 ciLock.lock();
                 clientInfos.add(id,new ArrayList<>());
+                clientStats.add(id,new ClientStats(id));
             }finally{
                 ciLock.unlock();
             }
@@ -236,6 +295,7 @@ public class Server {
         public void deleteClient () {
             try{
                 ciLock.lock();
+                clientInfos.remove(id);
                 clientInfos.add(id,null);
             }finally{
                 ciLock.unlock();
@@ -261,6 +321,26 @@ public class Server {
             deleteClient();
         }
         
+        public void updateStats(double db, ClientStats cs) {
+            int number = cs.getNumber();
+            double avg = cs.getAvg();
+            double variance = Math.pow(cs.getStd(),2);
+            cs.setNumber(number+1);
+            if (number==0) {
+                cs.setAvg(db);
+                cs.setStd(0);
+            } 
+            else {
+                cs.setAvg(fastAvg(avg,number,db));
+                cs.setStd(fastStd(avg,number,db,variance));
+            }   
+        }
+        
+        public boolean isOutlier (double db) {
+            ClientStats cs = clientStats.get(id);
+            return (cs.getNumber()>2) ? (db>cs.getStd()*100) : false;
+        }
+        
         //vou fazer cenas aqui l8r
         @Override
         public void run() {
@@ -276,22 +356,29 @@ public class Server {
                     st = new StringTokenizer (in.readLine(),";");
                     if (st.countTokens()==2) {
                         db = Double.parseDouble(st.nextToken());
-                        timestamp = Long.parseLong(st.nextToken());
-                        p = new Packet(id,db,timestamp);
-                        clientInfos.get(id).add(p);
-                        try{
-                            bufferlock.lock();
-                            buffer.add(p);
-                        } finally{
-                            bufferlock.unlock();
+                        if (isOutlier(db)==false) {
+                            timestamp = Long.parseLong(st.nextToken());
+                            p = new Packet(id,db,timestamp);
+                            clientInfos.get(id).add(p);
+                            //parte das médias
+                            updateStats(db,clientStats.get(id));
+                            //acaba parte das médias
+                            try{
+                                bufferlock.lock();
+                                buffer.add(p);
+                            } finally{
+                                bufferlock.unlock();
+                            }
                         }
                     }
                     if (st.countTokens()==1) {
                         if (st.nextToken().equals("over")) {
+                            System.out.printf("Sensor %d disconnected.\n", id);
                             deleteClient();
                             active = false;
                         }
                     }
+                    
                 }
             }
             catch(Exception e){
@@ -329,11 +416,9 @@ public class Server {
     }
 
     public static double stdDeviation(List<Double> values){
-        double stdev, avg, temp = 0.0;
+        double stdev, avg = 0.0, temp = 0.0;
 
         if(values.size() < 2){ return 0.0; }
-
-        avg = average(values);
 
         for(Double d : values){
             temp += Math.pow(d - avg, 2);
@@ -344,7 +429,18 @@ public class Server {
         return stdev;
     }
     
+    public static double fastAvg (double avg, int number,double x) {
+        return ((avg*number)/(number+1)) + x/(number+1);
+    }
+    
+    public static double fastStd (double avg, int number,double x,double variance) {
+        return Math.sqrt((variance*number)/(number+1) + (Math.pow(x-avg,2))/(number+1));
+    }
+    
+    
     public static void main(String[] args) throws Exception{
+        
+        
         ServerSocket ss;
         int i;
         audio = new Audio(true);
@@ -354,6 +450,7 @@ public class Server {
             clientInfos = new ArrayList<>();
             for (i=0; i < SIZE;i++) {
                 clientInfos.add(null);
+                clientStats.add(null);
             }
             ss = new ServerSocket(PORT);
             WorkerThread wt = new WorkerThread();
@@ -364,7 +461,7 @@ public class Server {
                     stdsLock.lock();
                     i=nextFree(stds);
                     if (i>=0) {
-                        stds[i]=new ServerThread(ss.accept(), clientInfos.size(), i);
+                        stds[i]=new ServerThread(ss.accept(), nextFree(clientInfos.toArray()), i);
                         stds[i].start();
                     }
                     else{ System.out.println("Every server thread is occupied. Try again later."); }
@@ -375,6 +472,5 @@ public class Server {
             }      
         }
         catch(Exception e){System.out.println(e.getMessage());}
-        
     }
 }

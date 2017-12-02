@@ -9,6 +9,7 @@ import java.net.Socket;
  */
 
 public class Client {
+    private static final int INTERVAL = 2000;
     private static BufferedReader in;
     private static PrintWriter out;
     private static Audio audio;
@@ -45,7 +46,6 @@ public class Client {
         int times=0;
         
         audio = new Audio();
-        audio.connect();
 
         try{
             true_ = true;
@@ -65,10 +65,11 @@ public class Client {
                 val = audio.capture();
                 System.out.println(++times + ": This place has " + val + " db.");
                 out.println(val + ";" +  System.currentTimeMillis());
-                Thread.sleep(1000);
+                Thread.sleep(INTERVAL);
             }
 
         }catch(Exception e){
+            System.out.println(e.getMessage());
             in.close();
             out.close();
             s.close();
