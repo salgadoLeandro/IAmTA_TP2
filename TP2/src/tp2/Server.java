@@ -125,24 +125,18 @@ public class Server {
         
         @Override
         public void run() {
-            System.out.println("Server is running on port " + PORT);
-            
-            List<ClientStats> cs = statsByClient();
-            
+            System.out.println("Server is running on port " + PORT);            
             try {
                 while (cycle) {
                     Thread.sleep(INTERVAL);
                     clientStats.forEach((ClientStats k) -> {
-                        if (k!=null) System.out.printf("FAST - Client %d -> Average = %f, STD = %f, test = %d\n", k.getId(), k.getAvg(), k.getStd(),cs.size());
-                    });
-                    cs.forEach((ClientStats k) -> {
-                        System.out.printf("NORMAL - Client %d -> Average = %f, STD = %f\n", k.getId(), k.getAvg(), k.getStd());
+                        if (k!=null) System.out.printf("Sensor %d -> Average = %f, STD = %f\n", k.getId(), k.getAvg(), k.getStd());
                     });
                     processBuffer();
                 }             
             }
             catch (Exception e) {
-                System.out.println("Exception in WorketThread: ");
+                System.out.println("Exception in WorketThread.");
                 e.printStackTrace();
             }   
         }
@@ -201,7 +195,7 @@ public class Server {
             audio1 = audio.evaluateExposure(vals[0]);
             audio2 = audio.evaluateExposure(vals[0] + vals[1]);
             
-            if(audio1 > INTERVAL){
+            if(audio1 < INTERVAL){
                 System.out.println("Too loud. Possible health risk");
             }
             
@@ -306,6 +300,9 @@ public class Server {
                 ciLock.unlock();
             }
             
+            clientStats.remove(id);
+            clientStats.add(id,null);
+            
             try {
                 in.close();
                 out.close();
@@ -346,7 +343,7 @@ public class Server {
             return (cs.getNumber()>2) ? (db>cs.getStd()*100) : false;
         }
         
-        //vou fazer cenas aqui l8r
+        //vou fazer cenas aqui ler
         @Override
         public void run() {
             try{
@@ -354,8 +351,8 @@ public class Server {
                 long timestamp;
                 in = new BufferedReader(new InputStreamReader(s.getInputStream()));
                 out = new PrintWriter(s.getOutputStream(), true);
-                out.println("Server registered Client " + id);
-                System.out.println("Good "+id);
+                out.printf("Server registered Sensor %d.\n",id);
+                System.out.printf("Sensor %d operational.\n", id);
                 StringTokenizer st;
                 while(active) {
                     st = new StringTokenizer (in.readLine(),";");
@@ -365,9 +362,7 @@ public class Server {
                             timestamp = Long.parseLong(st.nextToken());
                             p = new Packet(id,db,timestamp);
                             clientInfos.get(id).add(p);
-                            //parte das médias
                             updateStats(db,clientStats.get(id));
-                            //acaba parte das médias
                             try{
                                 bufferlock.lock();
                                 buffer.add(p);
@@ -388,7 +383,7 @@ public class Server {
             }
             catch(Exception e){
                 System.out.println(e.getMessage());
-                System.out.println("Client " + id + " cancelled suddenly.");
+                System.out.println("Sensor " + id + " stopped suddenly.");
                 System.out.flush();
                 deleteClient();
             }
@@ -444,9 +439,7 @@ public class Server {
     }
     
     
-    public static void main(String[] args) throws Exception{
-        
-        
+    public static void main(String[] args) throws Exception {
         ServerSocket ss;
         int i;
         audio = new Audio(true);

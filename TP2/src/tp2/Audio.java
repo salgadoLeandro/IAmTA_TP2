@@ -203,8 +203,7 @@ public class Audio {
     public double evaluateExposure(double decibel){
         if(decibel > 130.0){ return tablExposure.get(130.0); }
         if(decibel < 85.0){ return tablExposure.get(85); }
-        return tablExposure.get((((int)decibel - 85) / 3) * 3 + 85);
-        
+        return tablExposure.get((((int)decibel - 85) / 3) * 4 + 85);
     }
         
 }
