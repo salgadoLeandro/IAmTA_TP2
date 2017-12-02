@@ -106,11 +106,7 @@ public class Server {
             this.std = std;
         }
         
-        
-        
-        
     }
-    
     
     
     private static class WorkerThread extends Thread {
@@ -134,7 +130,6 @@ public class Server {
             List<ClientStats> cs = statsByClient();
             
             try {
-                
                 while (cycle) {
                     Thread.sleep(INTERVAL);
                     clientStats.forEach((ClientStats k) -> {
@@ -183,7 +178,7 @@ public class Server {
         }
         
         private void processBuffer(){
-            double time;
+            double audio1, audio2;
             List<Packet> local = new ArrayList<>();
             double vals[];
             
@@ -202,8 +197,18 @@ public class Server {
                 }
             }
             
-            vals = averageAndSTD(local);            
-            //fazer coisas com média e desvio padrão
+            vals = averageAndSTD(local);
+            audio1 = audio.evaluateExposure(vals[0]);
+            audio2 = audio.evaluateExposure(vals[0] + vals[1]);
+            
+            if(audio1 > INTERVAL){
+                System.out.println("Too loud. Possible health risk");
+            }
+            
+            if(audio2 == 0.0){
+                System.out.println("Sound might be too high. Possible health risk");
+            }
+            
         }
         
         //retorna lista com média de DB por cada cliente desde o momento da conexão
@@ -406,7 +411,8 @@ public class Server {
         double avg = 0.0;
 
         if(values.isEmpty()){ return 0.0; }
-
+        
+        avg = average(values);
 
         for(Double d : values){
             avg += d;
