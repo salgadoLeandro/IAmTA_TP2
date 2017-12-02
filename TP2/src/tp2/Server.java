@@ -22,9 +22,9 @@ public class Server {
     private static Audio audio = null;
     
     private static class Packet {
-        long timestamp;
-        double db;
-        int client_id;
+        private long timestamp;
+        private double db;
+        private int client_id;
         
         public Packet (int id, double db, long timestamp) {
             this.client_id=id;
@@ -58,26 +58,32 @@ public class Server {
     }
     
     private static class SensorTimes {
-        int id;
-      	double maxExp;
-      	double remaining;
+        private int id;
+        private double maxExp;
+        private double remaining;
       
         public SensorTimes (int id) {
             this.id = id;
             this.maxExp = 28800.0;
             this.remaining = this.maxExp;
         }
-      
+        
       	//só é chamada esta função quando existe pelo menos um packet neste cliente
         //assumimos que quando recebemos um novo packet o sensor esteve numa intensidade correspondente ao packet anterior a esse
         public boolean update (List<Packet> lp, Packet p) {
-            if (remaining < 0) return true;
-            long timestamp = p.getTimestamp();
-            double db = p.getDB();
-            double oldDB, dif = 0;
-            int jumps=0;
+            long timestamp;
+            double db, oldDB, dif;
+            int jumps;
+            
+            if (remaining < 0){ return true; }
+            
+            timestamp = p.getTimestamp();
+            db = p.getDB();
+            
             lp.add(p);
-            if (audio.evaluateExposure(db)<0 || lp.size()<2) return false;
+            
+            if (audio.evaluateExposure(db)<0 || lp.size()<2){ return false; }
+            
             oldDB = lp.get(lp.size()-2).getDB();
             timestamp -= lp.get(lp.size()-2).getTimestamp();
             remaining -= timestamp;
@@ -102,20 +108,20 @@ public class Server {
     }
     
     private static class ClientStats {
-        int id, number;
-        double avg, std;
+        private int id, number;
+        private double avg, std;
         
         public ClientStats (int id) {
-            this.id=id;
-            avg=0;
-            std=0;
-            number=0;
+            this.id = id;
+            avg = 0;
+            std = 0;
+            number = 0;
         }
         public ClientStats (int id, double avg, double std) {
-            this.id=id;
-            this.avg=avg;
-            this.std=std;
-            this.number=number;
+            this.id = id;
+            this.avg = avg;
+            this.std = std;
+            this.number = 0;
         }
 
         public int getId() {
@@ -154,11 +160,11 @@ public class Server {
     
     
     private static class WorkerThread extends Thread {
-        int duration;
-        double avg, stdev;
-        StringTokenizer st;
-        boolean cycle;
-        BufferedReader bf;
+        private int duration;
+        private double avg, stdev;
+        private StringTokenizer st;
+        private boolean cycle;
+        private BufferedReader bf;
         
         public WorkerThread () {
             cycle=true;
@@ -174,7 +180,7 @@ public class Server {
                 while (cycle) {
                     Thread.sleep(INTERVAL);
                     clientStats.forEach((ClientStats k) -> {
-                        if (k!=null) System.out.printf("Sensor %d -> Average = %f, STD = %f\n", k.getId(), k.getAvg(), k.getStd());
+                        if (k!=null){ System.out.printf("Sensor %d -> Average = %f, STD = %f\n", k.getId(), k.getAvg(), k.getStd()); }
                     });
                     processBuffer();
                 }             
@@ -210,7 +216,7 @@ public class Server {
             for (int i = 0; i < test.length-1; i++) {
                 faststd += Math.pow(test[i]-avg,2);
             }
-            faststd = faststd/(test.length-1);
+            faststd /= (test.length-1);
             faststd = fastStd(avg,test.length-1,3,faststd);
             System.out.println("FastSTD -> " + faststd);
         }
@@ -284,8 +290,8 @@ public class Server {
             double median;
             int m;
             
-            ciLock.lock();
             try {
+                ciLock.lock();
                 for(List<Packet> pt: clientInfos){
                     m = pt.size()/2;
                     Collections.sort(pt, (Packet t, Packet t1) -> {
@@ -310,15 +316,15 @@ public class Server {
     }
     
     private static class ServerThread extends Thread{
-        int id, threadNumber;
-        Socket s;
-        BufferedReader in;
-        PrintWriter out;
-        int times;
-        boolean active;
-        Packet p;
-        SensorTimes sensorT;
-        long stimestamp=0;
+        private int id, threadNumber;
+        private Socket s;
+        private BufferedReader in;
+        private PrintWriter out;
+        private int times;
+        private boolean active;
+        private Packet p;
+        private SensorTimes sensorT;
+        private long stimestamp=0;
 
         public ServerThread(Socket s, int id, int number){
             this.s = s;
@@ -337,9 +343,6 @@ public class Server {
             active = true;
             times=0;
         }
-        
-        
-        
         
         public void deleteClient () {
             try{
@@ -393,7 +396,6 @@ public class Server {
             return (cs.getNumber()>2) ? (db>cs.getStd()*100) : false;
         }
         
-        //vou fazer cenas aqui ler
         @Override
         public void run() {
             try{
