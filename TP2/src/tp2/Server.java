@@ -11,7 +11,7 @@ import java.util.stream.Collectors;
  * @author Gervásio Palhas
  */
 public class Server {
-    private static final int PORT = 6063, SIZE = 20, DEFAULT_TIME = 5000, QUANT = 1000, INTERVAL = 2000;
+    private static final int PORT = 6063, SIZE = 20, DEFAULT_TIME = 5000, QUANT = 1000, INTERVAL = 2000, DAY = 86400;
     private static int clientCount;
     private static List<List<Packet>> clientInfos;
     private static List<Packet> buffer;
@@ -55,6 +55,50 @@ public class Server {
         public void setID(int id){
             this.client_id = id;
         }
+    }
+    
+    private static class SensorTimes {
+        int id;
+      	double maxExp;
+      	double remaining;
+      
+        public SensorTimes (int id) {
+            this.id = id;
+            this.maxExp = 28800.0;
+            this.remaining = this.maxExp;
+        }
+      
+      	//só é chamada esta função quando existe pelo menos um packet neste cliente
+        //assumimos que quando recebemos um novo packet o sensor esteve numa intensidade correspondente ao packet anterior a esse
+        public boolean update (List<Packet> lp, Packet p) {
+            if (remaining < 0) return true;
+            long timestamp = p.getTimestamp();
+            double db = p.getDB();
+            double oldDB, dif = 0;
+            int jumps=0;
+            lp.add(p);
+            if (audio.evaluateExposure(db)<0 || lp.size()<2) return false;
+            oldDB = lp.get(lp.size()-2).getDB();
+            timestamp -= lp.get(lp.size()-2).getTimestamp();
+            remaining -= timestamp;
+            if (normalize(db)!=normalize(oldDB)) {
+                jumps = (normalize(db)-normalize(oldDB))/3;
+                dif = maxExp - remaining;
+                maxExp = audio.evaluateExposure(db);          
+                remaining = maxExp - dif*Math.pow(2,-jumps);
+            }                   
+            return (remaining<0);
+        }
+        
+        public void reset () {
+            this.maxExp = 28800.0;
+            this.remaining = this.maxExp;
+        }
+  
+  	public static int normalize(double decibel){
+            return (((int)decibel - 85) / 3) * 4 + 85;
+  	}
+      	
     }
     
     private static class ClientStats {
@@ -273,12 +317,16 @@ public class Server {
         int times;
         boolean active;
         Packet p;
+        SensorTimes sensorT;
+        long stimestamp=0;
 
         public ServerThread(Socket s, int id, int number){
             this.s = s;
             this.id=id;
             this.threadNumber = number;
             clientCount = increment(clientCount);
+            sensorT = new SensorTimes(id);
+            stimestamp = System.currentTimeMillis();
             try{
                 ciLock.lock();
                 clientInfos.add(id,new ArrayList<>());
@@ -289,6 +337,8 @@ public class Server {
             active = true;
             times=0;
         }
+        
+        
         
         
         public void deleteClient () {
@@ -355,13 +405,19 @@ public class Server {
                 System.out.printf("Sensor %d operational.\n", id);
                 StringTokenizer st;
                 while(active) {
+                    if ((System.currentTimeMillis()-this.stimestamp)%(DAY)==0) {
+                        this.sensorT.reset();
+                    }
                     st = new StringTokenizer (in.readLine(),";");
                     if (st.countTokens()==2) {
                         db = Double.parseDouble(st.nextToken());
                         if (isOutlier(db)==false) {
                             timestamp = Long.parseLong(st.nextToken());
                             p = new Packet(id,db,timestamp);
-                            clientInfos.get(id).add(p);
+                            if (sensorT.update(clientInfos.get(id),p)) {
+                                System.out.printf("Sensor %d has reached his daily exposure time limit.\n");
+                                out.println("Daily exposure time limit reached. Go somewhere quieter. Fast.");
+                            }
                             updateStats(db,clientStats.get(id));
                             try{
                                 bufferlock.lock();
@@ -467,7 +523,6 @@ public class Server {
                 } finally {
                     stdsLock.unlock();
                 }
-
             }      
         }
         catch(Exception e){System.out.println(e.getMessage());}
