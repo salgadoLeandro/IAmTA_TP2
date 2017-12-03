@@ -120,6 +120,10 @@ public class Server {
             if(decibel > 130.0){ return (int)decibel; }
             return 85 + (3 * (((dif % 3) > 0 ? 1 : 0) + (dif / 3)));
   	}
+        
+        public boolean hasExceedLimit(){
+            return remaining < 0;
+        }
       	
     }
     
@@ -135,6 +139,7 @@ public class Server {
             std = 0;
             number = 0;
             percents = new HashMap<>();
+            exceededLimit = new ArrayList<>();
         }
         public ClientStats (int id, double avg, double std) {
             this.id = id;
@@ -142,6 +147,7 @@ public class Server {
             this.std = std;
             this.number = 0;
             percents = new HashMap<>();
+            exceededLimit = new ArrayList<>();
         }
 
         public int getId() {
@@ -193,9 +199,9 @@ public class Server {
             return ret;
         }
         
-        //public void hasExceedLimits(){
-        //    
-        //}
+        public void hasExceedLimits(Boolean bool){
+            exceededLimit.add(bool);
+        }
         
         public List<String> getIntensityPercents_string(){
             int key;
@@ -217,6 +223,16 @@ public class Server {
             ret.sort((s1, s2) -> s1.compareTo(s2));
             ret.add(0, l);
             ret.add(ret.size(), h);
+            
+            return ret;
+        }
+        
+        public List<String> getLimits_string(){
+            List<String> ret = new ArrayList<>();
+            
+            for(Boolean b : exceededLimit){
+                ret.add(b ? "1" : "0");
+            }
             
             return ret;
         }
@@ -474,17 +490,23 @@ public class Server {
         }
         
         private void saveToLog(Writer target){
-            int size;
+            int size, i;
             StringBuilder sb = new StringBuilder();
             List<String> vals = clientStats.get(id).getIntensityPercents_string();
+            List<String> bools = clientStats.get(id).getLimits_string();
             
-            size = vals.size();
             sb.append(Server.timestampToDate(System.currentTimeMillis())).append("|");
             sb.append(this.uniqueID).append("|");
-            for(int i = 0; i < size; ++i){
+            for(i = 0, size = vals.size(); i < size; ++i){
                 sb.append(vals.get(i));
                 if(i < size - 1) { sb.append(","); }
             }
+            sb.append("|");
+            for(i = 0, size = bools.size(); i < size; ++i){
+                sb.append(bools.get(i));
+                if(i < size - 1) { sb.append(","); }
+            }
+            sb.append("|");
             sb.append(this.stimestamp);
             
             try{
@@ -508,6 +530,7 @@ public class Server {
                 StringTokenizer st;
                 while(active) {
                     if ((System.currentTimeMillis()-this.stimestamp)%(DAY*1000)==0) {
+                        clientStats.get(id).hasExceedLimits(this.sensorT.hasExceedLimit());
                         this.sensorT.reset();
                     }
                     st = new StringTokenizer (in.readLine(),";");
@@ -537,7 +560,6 @@ public class Server {
                         }
                     }    
                 }
-                //data da entrada do log|uniqueID|-85=0.5,85=...|timestamp inicio
                 saveToLog(logfile);
             }
             catch(Exception e){
@@ -545,6 +567,7 @@ public class Server {
                 System.out.println(e.getMessage());
                 System.out.printf("Sensor %d stopped suddenly.\n", id);
                 System.out.flush();
+                saveToLog(logfile);
                 deleteClient();
             }
         }
