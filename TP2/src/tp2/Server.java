@@ -12,7 +12,7 @@ import java.util.stream.Collectors;
  * @author Gervásio Palhas
  */
 public class Server {
-    private static final int PORT = 6063, SIZE = 20, DEFAULT_TIME = 5000, QUANT = 1000, INTERVAL = 2000, DAY = 86400;
+    private static final int PORT = 6063, SIZE = 20, DEFAULT_TIME = 5000, QUANT = 1000, INTERVAL = 2000, DAY = 86400, MOD = 500;
     private static int clientCount, uniqueID;
     private static List<List<Packet>> clientInfos;
     private static List<Packet> buffer;
@@ -259,9 +259,9 @@ public class Server {
                 System.out.printf("Server is running on %s:%d\n", InetAddress.getLocalHost().getHostAddress(), PORT);
                 while (cycle) {
                     Thread.sleep(INTERVAL);
-                    clientStats.forEach((ClientStats k) -> {
+                    /*clientStats.forEach((ClientStats k) -> {
                         if (k!=null){ System.out.printf("Sensor %d -> Average = %f, STD = %f\n", k.getId(), k.getAvg(), k.getStd()); }
-                    });
+                    });*/
                     processBuffer();
                 }             
             }
@@ -326,11 +326,6 @@ public class Server {
                 System.out.printf("The highest sound intensity is near sensor %d\n", c_high);
             }
             
-            for(Packet p : local){
-                if(audio.evaluateExposure(p.getDB()) == 0.0){
-                    System.out.printf("Sensor %d -> Too loud. Possible health risk.\n", p.getID());
-                }
-            }
             
             vals = averageAndSTD(local);
             if(vals != null) {
@@ -487,7 +482,8 @@ public class Server {
         
         private boolean isOutlier (double db) {
             ClientStats cs = clientStats.get(id);
-            return (cs.getNumber()>2) ? (db>cs.getStd()*100) : false;
+            return false;
+            //return (cs.getNumber()>2) ? (db>cs.getStd()*MOD) : false;
         }
         
         private void saveToLog(String filename){

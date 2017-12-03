@@ -65,7 +65,7 @@ public class Audio {
             mMaxValue = splValue;
         }
         
-        return splValue + 130.0;
+        return splValue;
 }
 
     public boolean close() throws IOException{

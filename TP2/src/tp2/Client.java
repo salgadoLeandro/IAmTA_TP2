@@ -10,7 +10,7 @@ import java.util.Scanner;
  */
 
 public class Client {
-    private static final int INTERVAL = 2000;
+    private static final int INTERVAL = 2000, INFLATION = 0;
     private static BufferedReader in;
     private static PrintWriter out;
     private static Audio audio;
@@ -31,6 +31,9 @@ public class Client {
                    if (s.equals("kill")) {
                        true_=false;
                        listen=false;
+                   }
+                   else {
+                       System.out.println(s);
                    }
                }catch (Exception e) {
                    out.println("over");
@@ -73,8 +76,8 @@ public class Client {
             lt.start();
             
             while(true_){
-                val = audio.capture();
-                System.out.println(++times + ": This place has " + val + " db.");
+                val = audio.capture() + INFLATION;
+                //System.out.println(++times + ": This place has " + val + " db.");
                 out.println(val + ";" +  System.currentTimeMillis());
                 Thread.sleep(INTERVAL);
             }
