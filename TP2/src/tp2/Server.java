@@ -20,6 +20,7 @@ public class Server {
     private static ServerThread[] stds = new ServerThread[QUANT];
     private static List<ClientStats> clientStats = new ArrayList<>();
     private static Audio audio = null;
+    private static long tp;
     
     private static class Packet {
         private long timestamp;
@@ -82,10 +83,12 @@ public class Server {
             
             lp.add(p);
             
-            if (audio.evaluateExposure(db)<0 || lp.size()<2){ return false; }
+            if(audio.evaluateExposure(db) < 0) { return false; }
+            if(lp.size() < 2) { return false; }
             
             oldDB = lp.get(lp.size()-2).getDB();
             timestamp -= lp.get(lp.size()-2).getTimestamp();
+            timestamp /= 1000.0;
             remaining -= timestamp;
             if (normalize(db)!=normalize(oldDB)) {
                 jumps = (normalize(db)-normalize(oldDB))/3;
@@ -93,7 +96,7 @@ public class Server {
                 maxExp = audio.evaluateExposure(db);          
                 remaining = maxExp - dif*Math.pow(2,-jumps);
             }                   
-            return (remaining<0);
+            return (remaining < 0);
         }
         
         public void reset () {
@@ -186,7 +189,7 @@ public class Server {
                 }             
             }
             catch (Exception e) {
-                System.out.println("Exception in WorketThread.");
+                System.out.println("Exception in WorkerThread.");
                 e.printStackTrace();
             }   
         }
@@ -221,7 +224,13 @@ public class Server {
             System.out.println("FastSTD -> " + faststd);
         }
         
+        private int getHighestIntensity(List<Packet> list){
+            list.sort((p1, p2) -> ((Double)p1.getDB()).compareTo(p2.getDB()));
+            return list.get(0).getID();
+        }
+        
         private void processBuffer(){
+            int c_high;
             double audio1, audio2;
             List<Packet> local = new ArrayList<>();
             double vals[];
@@ -235,29 +244,33 @@ public class Server {
                 bufferlock.unlock();
             }
             
+            if(!local.isEmpty()){
+                c_high = getHighestIntensity(local);
+                System.out.printf("The highest sound intensity is near sensor %d\n", c_high);
+            }
+            
             for(Packet p : local){
                 if(audio.evaluateExposure(p.getDB()) == 0.0){
-                    System.out.printf("Client %d -> Too loud. Possible health risk.\n", p.client_id);
+                    System.out.printf("Sensor %d -> Too loud. Possible health risk.\n", p.getID());
                 }
             }
             
             vals = averageAndSTD(local);
-            audio1 = audio.evaluateExposure(vals[0]);
-            audio2 = audio.evaluateExposure(vals[0] + vals[1]);
-            
-            if(audio1 < INTERVAL){
-                System.out.println("Too loud. Possible health risk");
-            }
-            
-            if(audio2 == 0.0){
-                System.out.println("Sound might be too high. Possible health risk");
+            if(vals != null) {
+                audio1 = audio.evaluateExposure(vals[0]);
+                audio2 = audio.evaluateExposure(vals[0] + vals[1]);
+                
+                if(audio1 > -1 && (audio1/1000) < INTERVAL){
+                    System.out.println("Too loud. Possible health risk.");
+                }
+
+                if(audio2 == 0.0){
+                    System.out.println("Sound might be too high. Possible health risk");
+                }
             }
             
         }
         
-        //retorna lista com média de DB por cada cliente desde o momento da conexão
-        //a lista vem ordenada exatamente como a clientInfos, e os indíces vêm exatamente como o clientInfos
-        //será preciso controlo de concorrência?
         private List<ClientStats> statsByClient () {
             List<ClientStats> avgs = new ArrayList<>();
             int size = clientInfos.size();
@@ -311,8 +324,6 @@ public class Server {
             
             return medians;
         }
-               
-        
     }
     
     private static class ServerThread extends Thread{
@@ -328,7 +339,7 @@ public class Server {
 
         public ServerThread(Socket s, int id, int number){
             this.s = s;
-            this.id=id;
+            this.id = id;
             this.threadNumber = number;
             clientCount = increment(clientCount);
             sensorT = new SensorTimes(id);
@@ -403,7 +414,7 @@ public class Server {
                 long timestamp;
                 in = new BufferedReader(new InputStreamReader(s.getInputStream()));
                 out = new PrintWriter(s.getOutputStream(), true);
-                out.printf("Server registered Sensor %d.\n",id);
+                out.printf("Server registered Sensor %d.\n", id);
                 System.out.printf("Sensor %d operational.\n", id);
                 StringTokenizer st;
                 while(active) {
@@ -417,7 +428,7 @@ public class Server {
                             timestamp = Long.parseLong(st.nextToken());
                             p = new Packet(id,db,timestamp);
                             if (sensorT.update(clientInfos.get(id),p)) {
-                                System.out.printf("Sensor %d has reached his daily exposure time limit.\n");
+                                System.out.printf("Sensor %d has reached his daily exposure time limit.\n", id);
                                 out.println("Daily exposure time limit reached. Go somewhere quieter. Fast.");
                             }
                             updateStats(db,clientStats.get(id));
@@ -440,8 +451,9 @@ public class Server {
                 }
             }
             catch(Exception e){
+                e.printStackTrace();
                 System.out.println(e.getMessage());
-                System.out.println("Sensor " + id + " stopped suddenly.");
+                System.out.printf("Sensor %d stopped suddenly.\n", id);
                 System.out.flush();
                 deleteClient();
             }
@@ -465,8 +477,6 @@ public class Server {
 
         if(values.isEmpty()){ return 0.0; }
         
-        avg = average(values);
-
         for(Double d : values){
             avg += d;
         }
@@ -479,6 +489,8 @@ public class Server {
 
         if(values.size() < 2){ return 0.0; }
 
+        avg = average(values);
+        
         for(Double d : values){
             temp += Math.pow(d - avg, 2);
         }
@@ -496,10 +508,10 @@ public class Server {
         return Math.sqrt((variance*number)/(number+1) + (Math.pow(x-avg,2))/(number+1));
     }
     
-    
     public static void main(String[] args) throws Exception {
         ServerSocket ss;
         int i;
+        tp = System.currentTimeMillis();
         audio = new Audio(true);
         buffer = new ArrayList<>();
         try{
