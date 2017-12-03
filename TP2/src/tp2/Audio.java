@@ -1,16 +1,8 @@
 package tp2;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import javax.sound.sampled.AudioFormat;
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.DataLine;
-import javax.sound.sampled.LineUnavailableException;
-import javax.sound.sampled.TargetDataLine;
+import java.io.*;
+import java.util.*;
+import javax.sound.sampled.*;
 
 public class Audio {
     private ByteArrayOutputStream out;

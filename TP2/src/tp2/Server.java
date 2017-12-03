@@ -3,6 +3,7 @@ package tp2;
 import java.util.*;
 import java.io.*;
 import java.net.*;
+import java.sql.Timestamp;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
@@ -12,15 +13,17 @@ import java.util.stream.Collectors;
  */
 public class Server {
     private static final int PORT = 6063, SIZE = 20, DEFAULT_TIME = 5000, QUANT = 1000, INTERVAL = 2000, DAY = 86400;
-    private static int clientCount;
+    private static int clientCount, uniqueID;
     private static List<List<Packet>> clientInfos;
     private static List<Packet> buffer;
     private static ReentrantLock stdsLock = new ReentrantLock(), ciLock = new ReentrantLock();
     private static ReentrantLock bufferlock = new ReentrantLock(), csLock = new ReentrantLock();
+    private static ReentrantLock logLock = new ReentrantLock();
     private static ServerThread[] stds = new ServerThread[QUANT];
     private static List<ClientStats> clientStats = new ArrayList<>();
     private static Audio audio = null;
     private static long tp;
+    private static Writer logfile;
     
     private static class Packet {
         private long timestamp;
@@ -55,6 +58,13 @@ public class Server {
         
         public void setID(int id){
             this.client_id = id;
+        }
+        
+        public String toString(){
+            StringBuilder sb = new StringBuilder();
+            sb.append(this.timestamp).append(":");
+            sb.append(this.db);
+            return sb.toString();
         }
     }
     
@@ -105,7 +115,10 @@ public class Server {
         }
   
   	public static int normalize(double decibel){
-            return (((int)decibel - 85) / 3) * 4 + 85;
+            int dif = (int)decibel - 85;
+            if(decibel < 85.0){ return (int)decibel; }
+            if(decibel > 130.0){ return (int)decibel; }
+            return 85 + (3 * (((dif % 3) > 0 ? 1 : 0) + (dif / 3)));
   	}
       	
     }
@@ -113,18 +126,22 @@ public class Server {
     private static class ClientStats {
         private int id, number;
         private double avg, std;
+        private Map<Integer, Integer> percents;
+        private List<Boolean> exceededLimit; 
         
         public ClientStats (int id) {
             this.id = id;
             avg = 0;
             std = 0;
             number = 0;
+            percents = new HashMap<>();
         }
         public ClientStats (int id, double avg, double std) {
             this.id = id;
             this.avg = avg;
             this.std = std;
             this.number = 0;
+            percents = new HashMap<>();
         }
 
         public int getId() {
@@ -159,8 +176,52 @@ public class Server {
             this.std = std;
         }
         
+        public void saveIntensity(double decibel){
+            int dec = SensorTimes.normalize(decibel);
+            dec = dec > 130 ? 131 : (dec < 85 ? 84 : dec);
+            if(!percents.containsKey(dec)) { percents.put(dec, 0); }
+            percents.get(dec);
+        }
+        
+        public Map<Integer, Double> getIntensityPercents(){
+            Map<Integer, Double> ret = new HashMap<>();
+            
+            percents.entrySet().stream().forEach((entry) -> {
+                ret.put(entry.getKey(), (double)entry.getValue() / number);
+            });
+            
+            return ret;
+        }
+        
+        //public void hasExceedLimits(){
+        //    
+        //}
+        
+        public List<String> getIntensityPercents_string(){
+            int key;
+            String h = new String(), l = new String();
+            StringBuilder sb = new StringBuilder();
+            List<String> ret = new ArrayList<>();
+            Map<Integer,Double> vals = getIntensityPercents();
+            
+            for(Map.Entry<Integer,Double> entry : vals.entrySet()){
+                key = entry.getKey();
+                sb.append(key < 85 ? "<85" : (key > 130 ? ">130" : key));
+                sb.append("=").append(entry.getValue());
+                if(key < 85) { l = sb.toString(); }
+                else if(key > 130) { h = sb.toString(); }
+                else { ret.add(sb.toString()); }
+                sb = new StringBuilder();
+            }
+            
+            ret.sort((s1, s2) -> s1.compareTo(s2));
+            ret.add(0, l);
+            ret.add(ret.size(), h);
+            
+            return ret;
+        }
+        
     }
-    
     
     private static class WorkerThread extends Thread {
         private int duration;
@@ -260,7 +321,7 @@ public class Server {
                 audio1 = audio.evaluateExposure(vals[0]);
                 audio2 = audio.evaluateExposure(vals[0] + vals[1]);
                 
-                if(audio1 > -1 && (audio1/1000) < INTERVAL){
+                if(audio1 > -1 && (audio1*1000) < INTERVAL){
                     System.out.println("Too loud. Possible health risk.");
                 }
 
@@ -327,7 +388,7 @@ public class Server {
     }
     
     private static class ServerThread extends Thread{
-        private int id, threadNumber;
+        private int id, threadNumber, uniqueID;
         private Socket s;
         private BufferedReader in;
         private PrintWriter out;
@@ -335,15 +396,19 @@ public class Server {
         private boolean active;
         private Packet p;
         private SensorTimes sensorT;
-        private long stimestamp=0;
+        private List<String> log;
+        private long stimestamp = 0;
 
         public ServerThread(Socket s, int id, int number){
             this.s = s;
             this.id = id;
             this.threadNumber = number;
-            clientCount = increment(clientCount);
+            clientCount = increment(clientCount, 1);
+            Server.uniqueID = increment(uniqueID, 1);
+            this.uniqueID = Server.uniqueID;
             sensorT = new SensorTimes(id);
             stimestamp = System.currentTimeMillis();
+            log = new ArrayList<>();
             try{
                 ciLock.lock();
                 clientInfos.add(id,new ArrayList<>());
@@ -355,7 +420,7 @@ public class Server {
             times=0;
         }
         
-        public void deleteClient () {
+        private void deleteClient () {
             try{
                 ciLock.lock();
                 clientInfos.remove(id);
@@ -387,24 +452,48 @@ public class Server {
             deleteClient();
         }
         
-        public void updateStats(double db, ClientStats cs) {
+        private void updateStats(double db, ClientStats cs) {
             int number = cs.getNumber();
             double avg = cs.getAvg();
             double variance = Math.pow(cs.getStd(),2);
-            cs.setNumber(number+1);
-            if (number==0) {
+            cs.saveIntensity(db);
+            cs.setNumber(number + 1);
+            if (number == 0) {
                 cs.setAvg(db);
                 cs.setStd(0);
             } 
             else {
                 cs.setAvg(fastAvg(avg,number,db));
                 cs.setStd(fastStd(avg,number,db,variance));
-            }   
+            }
         }
         
-        public boolean isOutlier (double db) {
+        private boolean isOutlier (double db) {
             ClientStats cs = clientStats.get(id);
             return (cs.getNumber()>2) ? (db>cs.getStd()*100) : false;
+        }
+        
+        private void saveToLog(Writer target){
+            int size;
+            StringBuilder sb = new StringBuilder();
+            List<String> vals = clientStats.get(id).getIntensityPercents_string();
+            
+            size = vals.size();
+            sb.append(Server.timestampToDate(System.currentTimeMillis())).append("|");
+            sb.append(this.uniqueID).append("|");
+            for(int i = 0; i < size; ++i){
+                sb.append(vals.get(i));
+                if(i < size - 1) { sb.append(","); }
+            }
+            sb.append(this.stimestamp);
+            
+            try{
+                logLock.lock();
+                target.write(sb.toString());
+            }catch(Exception e){}
+            finally{
+                logLock.unlock();
+            }
         }
         
         @Override
@@ -418,7 +507,7 @@ public class Server {
                 System.out.printf("Sensor %d operational.\n", id);
                 StringTokenizer st;
                 while(active) {
-                    if ((System.currentTimeMillis()-this.stimestamp)%(DAY)==0) {
+                    if ((System.currentTimeMillis()-this.stimestamp)%(DAY*1000)==0) {
                         this.sensorT.reset();
                     }
                     st = new StringTokenizer (in.readLine(),";");
@@ -446,9 +535,10 @@ public class Server {
                             deleteClient();
                             active = false;
                         }
-                    }
-                    
+                    }    
                 }
+                //data da entrada do log|uniqueID|-85=0.5,85=...|timestamp inicio
+                saveToLog(logfile);
             }
             catch(Exception e){
                 e.printStackTrace();
@@ -460,8 +550,8 @@ public class Server {
         }
     }
     
-    private static synchronized int increment(int x){
-        return x + 1;
+    private static synchronized int increment(int x, int y){
+        return x + y;
     }
     
     private static int nextFree (Object [] array) {
@@ -508,14 +598,23 @@ public class Server {
         return Math.sqrt((variance*number)/(number+1) + (Math.pow(x-avg,2))/(number+1));
     }
     
+    public static String timestampToDate(long timestamp){
+        Timestamp tp = new Timestamp(timestamp);
+        Date date = new Date(tp.getTime());
+        return date.toString();
+    }
+    
     public static void main(String[] args) throws Exception {
         ServerSocket ss;
         int i;
         tp = System.currentTimeMillis();
         audio = new Audio(true);
         buffer = new ArrayList<>();
+        
         try{
+            logfile = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(tp + ".log"), "utf-8"));
             clientCount = 0;
+            uniqueID = 0;
             clientInfos = new ArrayList<>();
             for (i=0; i < SIZE;i++) {
                 clientInfos.add(null);
@@ -540,5 +639,9 @@ public class Server {
             }      
         }
         catch(Exception e){System.out.println(e.getMessage());}
+        finally{
+            logfile.flush();
+            logfile.close();
+        }
     }
 }
