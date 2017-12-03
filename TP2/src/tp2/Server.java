@@ -493,7 +493,7 @@ public class Server {
             List<String> bools = clientStats.get(id).getLimits_string();
             Writer target;
             try{
-                target = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(filename), "utf-8"));
+                target = new PrintWriter(new BufferedWriter(new FileWriter(filename, true)));
             
                 sb.append(Server.timestampToDate(this.stimestamp)).append("|");
                 sb.append(Server.timestampToDate(System.currentTimeMillis())).append("|");
@@ -508,9 +508,10 @@ public class Server {
                     sb.append(",");
                 }
                 sb.append(this.sensorT.hasExceedLimit() ? 1 : 0);
-
+                sb.append("\r\n");
+                
                 logLock.lock();
-                target.write(sb.toString());
+                target.append(sb.toString());
                 target.flush();
                 target.close();
             }catch(Exception e){}
