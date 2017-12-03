@@ -23,7 +23,7 @@ public class Server {
     private static List<ClientStats> clientStats = new ArrayList<>();
     private static Audio audio = null;
     private static long tp;
-    private static Writer logfile;
+    private static String logfile;
     
     private static class Packet {
         private long timestamp;
@@ -221,8 +221,8 @@ public class Server {
             }
             
             ret.sort((s1, s2) -> s1.compareTo(s2));
-            ret.add(0, l);
-            ret.add(ret.size(), h);
+            if(!l.equals("")) { ret.add(0, l); }
+            if(!h.equals("")) { ret.add(ret.size(), h); }
             
             return ret;
         }
@@ -255,8 +255,8 @@ public class Server {
         
         @Override
         public void run() {
-            System.out.println("Server is running on port " + PORT);            
             try {
+                System.out.printf("Server is running on %s:%d\n", InetAddress.getLocalHost().getHostAddress(), PORT);
                 while (cycle) {
                     Thread.sleep(INTERVAL);
                     clientStats.forEach((ClientStats k) -> {
@@ -445,6 +445,7 @@ public class Server {
                 ciLock.unlock();
             }
             
+            clientCount = increment(clientCount, -1);
             clientStats.remove(id);
             clientStats.add(id,null);
             
@@ -489,29 +490,33 @@ public class Server {
             return (cs.getNumber()>2) ? (db>cs.getStd()*100) : false;
         }
         
-        private void saveToLog(Writer target){
+        private void saveToLog(String filename){
             int size, i;
             StringBuilder sb = new StringBuilder();
             List<String> vals = clientStats.get(id).getIntensityPercents_string();
             List<String> bools = clientStats.get(id).getLimits_string();
-            
-            sb.append(Server.timestampToDate(System.currentTimeMillis())).append("|");
-            sb.append(this.uniqueID).append("|");
-            for(i = 0, size = vals.size(); i < size; ++i){
-                sb.append(vals.get(i));
-                if(i < size - 1) { sb.append(","); }
-            }
-            sb.append("|");
-            for(i = 0, size = bools.size(); i < size; ++i){
-                sb.append(bools.get(i));
-                if(i < size - 1) { sb.append(","); }
-            }
-            sb.append("|");
-            sb.append(this.stimestamp);
-            
+            Writer target;
             try{
+                target = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(filename), "utf-8"));
+            
+                sb.append(Server.timestampToDate(this.stimestamp)).append("|");
+                sb.append(Server.timestampToDate(System.currentTimeMillis())).append("|");
+                sb.append(this.uniqueID).append("|");
+                for(i = 0, size = vals.size(); i < size; ++i){
+                    sb.append(vals.get(i));
+                    if(i < size - 1) { sb.append(","); }
+                }
+                sb.append("|");
+                for(i = 0, size = bools.size(); i < size; ++i){
+                    sb.append(bools.get(i));
+                    sb.append(",");
+                }
+                sb.append(this.sensorT.hasExceedLimit() ? 1 : 0);
+
                 logLock.lock();
                 target.write(sb.toString());
+                target.flush();
+                target.close();
             }catch(Exception e){}
             finally{
                 logLock.unlock();
@@ -563,8 +568,6 @@ public class Server {
                 saveToLog(logfile);
             }
             catch(Exception e){
-                e.printStackTrace();
-                System.out.println(e.getMessage());
                 System.out.printf("Sensor %d stopped suddenly.\n", id);
                 System.out.flush();
                 saveToLog(logfile);
@@ -635,7 +638,7 @@ public class Server {
         buffer = new ArrayList<>();
         
         try{
-            logfile = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(tp + ".log"), "utf-8"));
+            logfile = tp + ".log";
             clientCount = 0;
             uniqueID = 0;
             clientInfos = new ArrayList<>();
@@ -662,9 +665,5 @@ public class Server {
             }      
         }
         catch(Exception e){System.out.println(e.getMessage());}
-        finally{
-            logfile.flush();
-            logfile.close();
-        }
     }
 }

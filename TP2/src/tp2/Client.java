@@ -2,6 +2,7 @@ package tp2;
 
 import java.io.*;
 import java.net.Socket;
+import java.util.Scanner;
 
 /**
  *
@@ -45,12 +46,21 @@ public class Client {
     public static void main(String[] args) throws Exception {
         double val;
         int times=0;
+        String conec;
+        Scanner sc = new Scanner(System.in);
         
         audio = new Audio();
-
+        
+        if(args.length > 0) { conec = args[0]; }
+        else {
+            conec = sc.nextLine();
+        }
+        
+        if(conec.equals("")) { conec = "localhost"; }
+        
         try{
             true_ = true;
-            s = new Socket("localhost", 6063);
+            s = new Socket(conec, 6063);
             in = new BufferedReader(new InputStreamReader(s.getInputStream()));
             out = new PrintWriter(s.getOutputStream(), true);
             
