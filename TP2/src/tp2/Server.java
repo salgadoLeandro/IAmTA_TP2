@@ -482,7 +482,7 @@ public class Server {
         
         private boolean isOutlier (double db) {
             //ClientStats cs = clientStats.get(id);
-            return !(db > 200);
+            return (db > 200);
             //return (cs.getNumber()>2) ? (db>cs.getStd()*MOD) : false;
         }
         
